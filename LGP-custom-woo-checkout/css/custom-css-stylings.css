@@ -1,0 +1,5 @@
+.artwork-section-title {
+    position: absolute;
+    top: 75vh; /* Move it to 5% of the viewport height from the top */
+    left: 0;
+}
