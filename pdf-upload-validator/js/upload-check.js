@@ -1,4 +1,6 @@
 jQuery(document).ready(function($) {
+    const pdfFileWarning = "Preflight Warning: Our preferred format for printing is PDF. Please convert or save your file as a PDF and reupload. If you cannot create a PDF, please email your current file to orders@ncr4less.co.uk after checkout."
+    const pdfSizeWarning = "Preflight Check: Your file measures XXXmm x XXXmm (xx), are you happy these are the correct dimensions for the job you require? "
     console.log('JS Loaded');
 
     const waitForPreview = setInterval(() => {
@@ -33,7 +35,7 @@ jQuery(document).ready(function($) {
 
             // Check if the file is a PDF
             if (!/\.pdf$/i.test(fileUrl)) {
-                alert('Only PDF files are allowed.');
+                alert(pdfFileWarning);
 
                 $(previewEl).addClass('hide');
                 $(previewEl).siblings('.wc-checkout-add-ons-dropzone').removeClass('hide');
@@ -67,13 +69,19 @@ jQuery(document).ready(function($) {
                 console.log(`[PDF.js] Page size in mm: ${widthMm.toFixed(2)} x ${heightMm.toFixed(2)} mm`);
     
                 // Determine the paper size based on the dimensions
-                const paperSize = getPaperSize(widthMm, heightMm);
+                const paperSize = fileSizeCalc(widthMm, heightMm);
+                fileSizeCalc(widthMm, heightMm);
     
                 // Create a message with the PDF size and paper size
-                const sizeMessage = `This file is ${widthMm.toFixed(2)} x ${heightMm.toFixed(2)} mm (${paperSize}). Does that match your specified job size?`;
+                const sizeMessage = `Preflight Check: Your file measures ${widthMm.toFixed(2)}mm x ${heightMm.toFixed(2)}mm (${paperSize}). Are you happy these are the correct dimensions for the job you require?`;
     
-                // Display the size in a popup message
-                alert(sizeMessage);
+                const event = new CustomEvent('pdfValidator:showConfirmModal', {
+                    detail: {
+                        message: sizeMessage,
+                        previewEl: previewEl
+                    }
+                });
+                window.dispatchEvent(event);
             });
         }).catch(function(error) {
             if (error.name === 'PasswordException') {
@@ -96,9 +104,7 @@ jQuery(document).ready(function($) {
         });
     }
 
-    // Function to determine the paper size based on the dimensions
-    function getPaperSize(widthMm, heightMm) {
-        // Define paper sizes in mm
+    function fileSizeCalc(widthMm, heightMm) {
         const sizes = {
             A3: { width: 297, height: 420 },
             A4: { width: 210, height: 297 },
@@ -106,18 +112,78 @@ jQuery(document).ready(function($) {
             A6: { width: 105, height: 148 },
             DL: { width: 210, height: 99 }
         };
-
-        // Check dimensions and return the corresponding paper size if smaller than or equal to each
+    
+        let currentLowestSize = null;
+    
         for (const [size, dimensions] of Object.entries(sizes)) {
             if (
                 (widthMm <= dimensions.width && heightMm <= dimensions.height) ||
                 (widthMm <= dimensions.height && heightMm <= dimensions.width)
             ) {
-                return size;
+                if (!currentLowestSize || (
+                    dimensions.width * dimensions.height <
+                    sizes[currentLowestSize].width * sizes[currentLowestSize].height
+                )) {
+                    currentLowestSize = size;
+                }
             }
         }
-
-        // If no match is found, return a generic size
-        return 'Unknown size';
+    
+        console.log('[FileSizeCalc] Smallest fitting size:', currentLowestSize);
+        if (!currentLowestSize) {
+            return 'unknown size'
+        } else {
+            return currentLowestSize;
+        }
     }
+
+
+
+    window.addEventListener('pdfValidator:showConfirmModal', function(e) {
+        const { message, previewEl } = e.detail;
+    
+        // Check if modal already exists
+        if (!document.getElementById('pdf-confirm-modal')) {
+            $('body').append(`
+                <div id="pdf-confirm-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; display:flex; align-items:center; justify-content:center;">
+                    <div style="background:#fff; padding:20px; max-width:500px; width:90%; border-radius:8px; text-align:center; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
+                        <p id="pdf-confirm-text" style="margin-bottom: 20px;"></p>
+                        <div style="display: flex; justify-content: center; gap: 10px;">
+                            <button id="pdf-confirm-yes">Yes</button>
+                            <button id="pdf-confirm-cancel">No - I will reupload the correct size</button>
+                        </div>
+                    </div>
+                </div>
+            `);
+        }
+    
+        // Set text and show modal
+        $('#pdf-confirm-text').text(message);
+        $('#pdf-confirm-modal').fadeIn();
+    
+        // Remove any old listeners
+        $('#pdf-confirm-yes').off('click');
+        $('#pdf-confirm-cancel').off('click');
+    
+        // YES
+        $('#pdf-confirm-yes').on('click', function () {
+            $('#pdf-confirm-modal').fadeOut();
+            // User confirmed, do nothing (they accepted dimensions)
+        });
+    
+        // CANCEL
+        $('#pdf-confirm-cancel').on('click', function () {
+            $('#pdf-confirm-modal').fadeOut();
+    
+            // User rejected — remove uploaded file and reset
+            $(previewEl).addClass('hide');
+            $(previewEl).siblings('.wc-checkout-add-ons-dropzone').removeClass('hide');
+            $(previewEl).siblings('.wc-checkout-add-ons-feedback')
+                .removeClass('hide')
+                .text('Please reupload your file with the correct dimensions.');
+            $(previewEl).closest('.wc-checkout-add-ons').find('input[type="hidden"]').val('');
+        });
+    });
 });
+
+
