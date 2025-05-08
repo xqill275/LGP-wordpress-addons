@@ -15,7 +15,7 @@ $my_orders_columns = apply_filters(
 		'order-date'    => esc_html__( 'Date', 'woocommerce' ),
 		'order-status'  => esc_html__( 'Status', 'woocommerce' ),
 		'order-total'   => esc_html__( 'Total', 'woocommerce' ),
-        'order-note'    => esc_html__( 'Note',  'Woocommerce' ),
+        'order-note'    => esc_html__( 'Artwork Title',  'Woocommerce' ),
 		'order-actions' => '&nbsp;',
 	)
 );
